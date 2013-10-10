@@ -26,7 +26,8 @@ class Redis::Dump::CLI
   trawler :load
   
   global :u, :uri, String, "Redis URI (e.g. redis://hostname[:port])"
-  global :d, :database, Integer, "Redis database (e.g. -d 15)"
+  global :d, :database, Integer, "Redis database from input (e.g. -d 15)"
+  global :m, :move, Integer, "Redis database to move input to (e.g. -m 5) requires --database flag."
   global :s, :sleep, Integer, "Sleep for S seconds after dumping (for debugging)"
   global :n, :no_check_utf8 do
     Redis::Dump.check_utf8 = false
@@ -48,6 +49,13 @@ class Redis::Dump::CLI
     obj.global.uri = 'redis://' << obj.global.uri unless obj.global.uri.match(/^redis:\/\//)
     obj.global.database &&= obj.global.database.to_i
     obj.global.database ||= (0..15)
+    if obj.global.move
+      unless obj.global.database.kind_of?(Integer)
+        raise ArgumentError.new('--move flag requires --database flag')
+      end
+      move_db = obj.global.move.to_i
+      obj.global.move = proc { move_db }
+    end
     Redis::Dump.ld "redis_uri: #{obj.global.uri} (#{obj.global.database})"
     Redis::Dump.ld "Process: #{$$}; Memory: #{Redis::Dump.memory_usage}" if Redis::Dump.debug
   end
@@ -61,6 +69,7 @@ class Redis::Dump::CLI
   usage "<dumpfile_db15.json redis-load -d 15"
   command :load do |obj|
     rd = Redis::Dump.new obj.global.database, obj.global.uri
+    rd.move_map = obj.global.move
     raise "Usage: cat dumpfile_db15.json | redis-load -d 15" if STDIN.tty?
     rd.load STDIN
   end

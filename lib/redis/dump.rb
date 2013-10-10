@@ -11,6 +11,7 @@ class Redis
     unless defined?(Redis::Dump::VALID_TYPES)
       VALID_TYPES = ['string', 'set', 'list', 'zset', 'hash', 'none'].freeze
     end
+    IDENTITY = proc { |x| x } unless defined?(IDENTITY)
     @host = '127.0.0.1'
     @port = 6379
     @debug = false
@@ -145,7 +146,8 @@ class Redis
           Redis::Dump.ld "db out of range: #{obj["db"]}"
           next
         end
-        this_redis = redis(obj["db"])
+        destination_db = move_map.call(obj["db"])
+        this_redis = redis(destination_db)
         #Redis::Dump.ld "load[#{this_redis.hash}, #{obj}]"
         if each_record.nil?
           if Redis::Dump.safe && this_redis.exists(obj['key'])
@@ -164,6 +166,15 @@ class Redis
       end
       count
     end
+
+    def move_map=(proc)
+      @move_map = proc
+    end
+
+    def move_map
+      @move_map || IDENTITY
+    end
+
     module ClassMethods
       def type(this_redis, key)
         type = this_redis.type key
